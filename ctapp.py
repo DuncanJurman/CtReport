@@ -202,20 +202,29 @@ def send_campaign(campaign_id):
         return False
 
 # ---------- STREAMLIT UI ----------
+# App Title
 st.title("Automated Newsletter App")
 
-# **Step 1: Fetch and Edit Google Ads**
+# -------------------- STEP 1: Fetch & Edit Google Ads --------------------
+st.header("Step 1: Fetch and Edit Google Ads")
+
 col1, col2 = st.columns(2)
 with col1:
     if st.button("Load Google Sheet Ads"):
         ads_df = get_ads_from_public_google_sheet(GOOGLE_SHEET_CSV_URL)
         if ads_df:
             st.success("Ads Loaded Successfully!")
-            st.dataframe(pd.DataFrame({"Ad Text": [a.split('<a')[0] for a in ads_df], "Ad Link": [a.split('href="')[1].split('"')[0] for a in ads_df]}))
+            st.dataframe(pd.DataFrame({
+                "Ad Text": [a.split('<a')[0] for a in ads_df], 
+                "Ad Link": [a.split('href="')[1].split('"')[0] for a in ads_df]
+            }))
 
 with col2:
     st.markdown(f'<a href="{GOOGLE_SHEET_EDIT_URL}" target="_blank"><button style="width:100%;">Edit Ads</button></a>', unsafe_allow_html=True)
 
+st.divider()
+
+# -------------------- STEP 2: Scrape & Generate Email --------------------
 st.header("Step 2: Scrape & Generate Email")
 
 if st.button("Scrape & Generate Email"):
@@ -232,7 +241,53 @@ if st.button("Scrape & Generate Email"):
     if headlines:
         output_path = insert_data_into_template(TEMPLATE_FILE, OUTPUT_FILE, headlines, ads)
         if output_path:
-            st.success(f"✅ Email template generated successfully!")
+            st.session_state["email_generated"] = True
+            st.success("✅ Email template generated successfully!")
             with open(output_path, "r") as file:
                 st.download_button("Download Email HTML", file.read(), file_name="Updated_Email_Template.html", mime="text/html")
 
+st.divider()
+
+# -------------------- STEP 3: Create Mailchimp Campaign --------------------
+st.header("Step 3: Mailchimp Campaign")
+
+# Initialize session state
+if "campaign_id" not in st.session_state:
+    st.session_state["campaign_id"] = None
+if "subject_line" not in st.session_state:
+    st.session_state["subject_line"] = ""
+
+# User Input for Subject Line
+subject_line = st.text_input("Enter Email Subject Line")
+
+if st.button("Create Mailchimp Campaign"):
+    if not subject_line:
+        st.warning("⚠️ Please enter a subject line before proceeding.")
+    elif "email_generated" not in st.session_state or not st.session_state["email_generated"]:
+        st.error("❌ No email template found! Please generate the email first.")
+    else:
+        html_content = read_html_template(OUTPUT_FILE)
+        if not html_content:
+            st.error("❌ Email template file is empty or missing.")
+        else:
+            campaign_id = create_campaign(subject_line)
+            if campaign_id:
+                success = set_campaign_content(campaign_id, html_content)
+                if success:
+                    st.session_state["campaign_id"] = campaign_id
+                    st.session_state["subject_line"] = subject_line
+                    st.success(f"✅ Campaign '{subject_line}' created successfully! ID: {campaign_id}")
+
+st.divider()
+
+# -------------------- STEP 4: Preview & Send Campaign --------------------
+if st.session_state["campaign_id"]:
+    st.header("Step 4: Preview & Send Campaign")
+    st.write(f"**Campaign Subject Line:** {st.session_state['subject_line']}")
+
+    if st.button("Send Now"):
+        confirm_send = st.checkbox("I confirm that I want to send this campaign now.")
+        if confirm_send:
+            success = send_campaign(st.session_state["campaign_id"])
+            if success:
+                st.success("✅ Campaign sent successfully!")
