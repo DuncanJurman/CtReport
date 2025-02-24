@@ -128,7 +128,7 @@ def insert_data_into_template(template_path, output_path, headlines, ads):
 # ---------- STEP 5: Mailchimp Campaign Creation ----------
 
 # Hardcoded Mailchimp Credentials
-MAILCHIMP_API_KEY = "44e0488c1dd90ca9106555be55ad5952-us20"
+MAILCHIMP_API_KEY = st.secrets["mailchimp"]["MAILCHIMP_API_KEY"]
 MAILCHIMP_SERVER_PREFIX = "us20"
 MAILCHIMP_AUDIENCE_ID = "7f9e915456"
 
